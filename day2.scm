@@ -34,10 +34,11 @@
 
 
 (define-record-type submarine
-  (make-submarine horizontal-pos depth)
+  (make-submarine horizontal-pos depth aim)
   submarine?
   (horizontal-pos submarine-horizontal-pos)
-  (depth submarine-depth))
+  (depth submarine-depth)
+  (aim submarine-aim))
 
 
 (define (get-horizontal-offset-from-instruction direction count)
@@ -45,7 +46,12 @@
       count
       0))
 
-(define (get-depth-offset-from-instruction direction count)
+(define (get-depth-offset-from-instruction submarine direction count)
+  (let ((aim (submarine-aim submarine))
+        (hoffset (get-horizontal-offset-from-instruction direction count)))
+    (* aim hoffset)))
+
+(define (get-aim-offset-from-instruction direction count)
   (cond
    ((eq? direction 'up) (- count))
    ((eq? direction 'down) count)
@@ -55,11 +61,13 @@
   (let ((direction (car instruction))
         (count (cdr instruction))
         (hpos (submarine-horizontal-pos submarine))
-        (depth (submarine-depth submarine)))
+        (depth (submarine-depth submarine))
+        (aim (submarine-aim submarine)))
 
     (make-submarine
      (+ hpos (get-horizontal-offset-from-instruction direction count))
-     (+ depth (get-depth-offset-from-instruction direction count)))))
+     (+ depth (get-depth-offset-from-instruction submarine direction count))
+     (+ aim (get-aim-offset-from-instruction direction count)))))
 
 
 (define (walk-submarine initial-submarine pilot-data)
@@ -67,9 +75,10 @@
 
 (define (run-script file)
   (let* ((pilot-data (read-pilot-file file))
-         (submarine (walk-submarine (make-submarine 0 0) pilot-data)))
+         (submarine (walk-submarine (make-submarine 0 0 0) pilot-data)))
     (format #t "Horizontal: ~A | Depth: ~A | Total: ~A \n"
             (submarine-horizontal-pos submarine)
             (submarine-depth submarine)
             (* (submarine-horizontal-pos submarine)
                (submarine-depth submarine)))))
+
