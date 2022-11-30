@@ -91,12 +91,12 @@
             #t
             (board-won-vertically-recur (cdr board-split))))))
 
-  
+
 (define (board-won-vertically? board-data)
   (let ((vertical-indices
          (sort (map (lambda (n) (modulo n 5)) board-data) < )))
     (board-won-vertically-recur vertical-indices)))
-  
+
 
 
 (define (board-won? board)
@@ -112,25 +112,68 @@
      (board-won? board))
    board-set))
 
+(define (what-boards-won board-set)
+  (let ((victory-map (map board-won? board-set))
+        (board-length (iota (length board-set))))
+    (map cdr
+         (filter
+          (lambda (victory-element)
+            (eq? #t (car victory-element)))
+          (map cons victory-map board-length)))))
 
-(define (iterate-game board number marked-set)
+(define (remove-boards marked-set indices)
+  (let ((marked-set-enum (zip (iota (length marked-set)) marked-set)))
+    (map second
+         (reverse (fold (lambda (enum-element new-marked-set)
+                          (let ((index (first enum-element)))
+                            (if (not (member index indices))
+                                (cons enum-element new-marked-set)
+                                (cons (list index '()) new-marked-set))))
+                        '() marked-set-enum)))))
+
+
+(define (is-only-one-board-remaining marked-set won-boards)
+  (= (- (length marked-set) (length won-boards)) 1))
+
+; TODO: More than one board can win at the same time.
+
+(define (iterate-game board number marked-set won-boards)
   (let* ((new-marked-set (append-board-set marked-set (mark-board-set board number)))
          (won-board (what-board-won new-marked-set)))
     (if (equal? won-board #f)
-        (cons 'continue new-marked-set)
-        (cons 'won (list won-board number new-marked-set)))))
+        (cons 'continue (list new-marked-set won-boards))
+        (cons 'won (list won-board number new-marked-set won-boards)))))
+
+(define (iterate-game-until-last-board board number marked-set won-boards)
+  (let* ((new-marked-set (remove-boards
+                          (append-board-set marked-set (mark-board-set board number))
+                          won-boards))
+         (won-board-list (what-boards-won new-marked-set)))
+    (cond
+     ((null? won-board-list) (cons 'continue (list new-marked-set won-boards)))
+     ((> (length won-board-list) 0)
+      (if (is-only-one-board-remaining marked-set won-boards)
+          (cons 'won (list (last won-board-list) number new-marked-set won-boards))
+          (cons 'board-won (list (last won-board-list) number new-marked-set
+                                 (append won-board-list won-boards))))))))
 
 (define (create-empty-marked-set board-set)
   (map (lambda (_) '()) (iota (length board-set))))
 
-(define (fold-step-game board number state)
+(define (fold-step-game board number state iterate-fn)
   (cond
    ((eq? (car state) 'won) state)
-   ((eq? (car state) 'continue) (iterate-game board number (cdr state)))))
+   ((eq? (car state) 'board-won) (iterate-fn board number (fourth state) (fifth state)))
+   ((eq? (car state) 'continue) (iterate-fn board number (second state) (third state)))))
 
 (define (play-game boards nums)
-  (fold (lambda (n state) (fold-step-game boards n state))
-        (iterate-game boards (car nums) (create-empty-marked-set boards))
+  (fold (lambda (n state) (fold-step-game boards n state iterate-game))
+        (iterate-game boards (car nums) (create-empty-marked-set boards) '())
+        (cdr nums)))
+
+(define (play-game-until-last-board boards nums)
+  (fold (lambda (n state) (fold-step-game boards n state iterate-game-until-last-board))
+        (iterate-game-until-last-board boards (car nums) (create-empty-marked-set boards) '())
         (cdr nums)))
 
 (define (bingo-board-index boards index)
@@ -173,6 +216,17 @@
          (bingo-boards (cdr bingo-file))
          (game-end-state (play-game bingo-boards bingo-nums)))
 
+    (if (eq? (car game-end-state) 'won)
+        (run-script-victory-conditions bingo-boards game-end-state)
+        (display "Perdeste"))))
+
+(define (run-script-2 file)
+  (let* ((bingo-file (read-bingo-file file))
+         (bingo-nums (car bingo-file))
+         (bingo-boards (cdr bingo-file))
+         (game-end-state (play-game-until-last-board bingo-boards bingo-nums)))
+
+    (display game-end-state)
     (if (eq? (car game-end-state) 'won)
         (run-script-victory-conditions bingo-boards game-end-state)
         (display "Perdeste"))))
