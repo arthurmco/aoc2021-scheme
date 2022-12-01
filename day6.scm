@@ -1,4 +1,5 @@
 (use-modules (ice-9 rdelim)
+             (ice-9 hash-table)
              (ice-9 futures)
              (srfi srfi-1)
              (srfi srfi-43))
@@ -19,42 +20,50 @@
     (close-port port)
     data))
 
+
+
+
 ;; TODO: track per internal timer, not per count!
+(define (init-lanternfish-lifetime-dictionary lanternfish-list)
+  (let ((fish-counter
+         (lambda (num)
+           (count (lambda (i) (= num i)) lanternfish-list) )))
+    (alist->hash-table (map (lambda (num)
+                              (cons num (fish-counter num)))
+                            (iota 10 -1)))))
 
-(define (decrement-lanternfish lanternfish-vec)
-  (vector-map (lambda (_ v) (- v 1)) lanternfish-vec))
+(define (sum-lanternfishes lanternfish-dict)
+  (hash-fold (lambda (_ num sum) (+ num sum)) 0 lanternfish-dict))
 
-(define (handle-lanternfish-birth lanternfish-vec)
-   (vector-fold
-    (lambda (_ fishlist age)
-      (if (>= age 0)
-          (vector-append fishlist (vector age))
-          (vector-append fishlist (vector 6 8))))
-    (vector) lanternfish-vec))
+(define (decrement-lanternfish lanternfish-dictionary)
+  (alist->hash-table
+   (filter (lambda (c) (> (car c) -2))
+           (map (lambda (c) (cons (- (car c) 1) (cdr c)))
+                (hash-map->list cons lanternfish-dictionary)))))
 
 
-(define (lanternfish-iterate-each-day lanternfish-vec days-remaining)
+(define (handle-lanternfish-birth lanternfish-dictionary)
+  (let ((pregnant-fishes (hash-ref lanternfish-dictionary -1)))
+    (hash-set! lanternfish-dictionary -1 0)
+    (hash-set! lanternfish-dictionary 6 (+ (hash-ref lanternfish-dictionary 6 0) pregnant-fishes))
+    (hash-set! lanternfish-dictionary 8 (+ (hash-ref lanternfish-dictionary 8 0) pregnant-fishes))
+    lanternfish-dictionary))
+
+(define (lanternfish-iterate-each-day lanternfish-dictionary days-remaining)
   (format #t "Days remaining for this slot: ~A\n" days-remaining)
   (if (<= days-remaining 0)
-      lanternfish-vec
+      lanternfish-dictionary
       (lanternfish-iterate-each-day
-       (handle-lanternfish-birth (decrement-lanternfish lanternfish-vec))
+       (handle-lanternfish-birth (decrement-lanternfish lanternfish-dictionary))
        (- days-remaining 1))))
-
-(define (lanternfish-iterate-each-day-parallel lanternfish-vec days-remaining)
-  (let ((tasks (vector-map
-                 (lambda (i v) (future (lanternfish-iterate-each-day v days-remaining)))
-                 (vector-map (lambda (_ v) (vector v)) lanternfish-vec))))
-    (vector->list
-     (vector-map (lambda (_ v) (vector-length v)) (vector-map (lambda (_ v) (touch v)) tasks)))))
 
 
 (define (run-script file)
-  (let* ((initial-state (read-lanternfish-file file))
-        (after-80-days (lanternfish-iterate-each-day (list->vector initial-state) 80)))
-    (format #t "After 80 days we have ~A fish\n" (vector-length after-80-days))))
+  (let* ((initial-state (init-lanternfish-lifetime-dictionary (read-lanternfish-file file)))
+        (after-80-days (lanternfish-iterate-each-day initial-state 80)))
+    (format #t "After 80 days we have ~A fish\n" (sum-lanternfishes after-80-days))))
 
 (define (run-script-2 file)
-  (let* ((initial-state (read-lanternfish-file file))
-        (after-256-days (lanternfish-iterate-each-day (list->vector initial-state) 256)))
-    (format #t "After 256 days we have ~A fish\n" (vector-length after-256-days))))
+  (let* ((initial-state (init-lanternfish-lifetime-dictionary (read-lanternfish-file file)))
+        (after-256-days (lanternfish-iterate-each-day initial-state 256)))
+    (format #t "After 256 days we have ~A fish\n" (sum-lanternfishes after-256-days))))
