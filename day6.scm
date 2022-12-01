@@ -1,4 +1,5 @@
 (use-modules (ice-9 rdelim)
+             (ice-9 futures)
              (srfi srfi-1)
              (srfi srfi-43))
 
@@ -18,6 +19,8 @@
     (close-port port)
     data))
 
+;; TODO: track per internal timer, not per count!
+
 (define (decrement-lanternfish lanternfish-vec)
   (vector-map (lambda (_ v) (- v 1)) lanternfish-vec))
 
@@ -31,15 +34,27 @@
 
 
 (define (lanternfish-iterate-each-day lanternfish-vec days-remaining)
-  (format #t "Remaining ~A days\n" days-remaining)
+  (format #t "Days remaining for this slot: ~A\n" days-remaining)
   (if (<= days-remaining 0)
       lanternfish-vec
       (lanternfish-iterate-each-day
        (handle-lanternfish-birth (decrement-lanternfish lanternfish-vec))
        (- days-remaining 1))))
 
+(define (lanternfish-iterate-each-day-parallel lanternfish-vec days-remaining)
+  (let ((tasks (vector-map
+                 (lambda (i v) (future (lanternfish-iterate-each-day v days-remaining)))
+                 (vector-map (lambda (_ v) (vector v)) lanternfish-vec))))
+    (vector->list
+     (vector-map (lambda (_ v) (vector-length v)) (vector-map (lambda (_ v) (touch v)) tasks)))))
+
 
 (define (run-script file)
   (let* ((initial-state (read-lanternfish-file file))
         (after-80-days (lanternfish-iterate-each-day (list->vector initial-state) 80)))
     (format #t "After 80 days we have ~A fish\n" (vector-length after-80-days))))
+
+(define (run-script-2 file)
+  (let* ((initial-state (read-lanternfish-file file))
+        (after-256-days (lanternfish-iterate-each-day (list->vector initial-state) 256)))
+    (format #t "After 256 days we have ~A fish\n" (vector-length after-256-days))))
