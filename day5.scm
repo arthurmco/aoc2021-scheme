@@ -44,6 +44,9 @@
 (define (vent-line-is-vertical? vent-line)
   (= (car (vent-line-start vent-line)) (car (vent-line-end vent-line))))
 
+(define (vent-line-is-diagonal-down-right? vent-line)
+  (= (car (vent-line-start vent-line)) (car (vent-line-end vent-line))))
+
 
 (define (make-trajectory-point start end)
   (cons start end))
@@ -66,6 +69,16 @@
      start
      (vent-line-vertical-trajectory (cons (car start) (+ (cdr start) 1)) end)))))
 
+
+(define (vent-line-diagonal-45-trajectory start end)
+  (if (equal? start end)
+      `(,start)
+      (let ((xdir (if (> (car start) (car end)) -1 1))
+            (ydir (if (> (cdr start) (cdr end)) -1 1)))
+        (cons
+         start
+         (vent-line-diagonal-45-trajectory (cons (+ (car start) xdir) (+ (cdr start) ydir)) end )))))
+
 (define (vent-line-trajectory vent-line)
   (cond
    ((vent-line-is-horizontal? vent-line)
@@ -74,7 +87,9 @@
    ((vent-line-is-vertical? vent-line)
     (vent-line-vertical-trajectory (vent-line-start vent-line)
                                    (vent-line-end vent-line)))
-   (else '())))
+   (else (vent-line-diagonal-45-trajectory
+          (vent-line-start vent-line)
+          (vent-line-end vent-line)))))
 
 
 (define (point-to-hash-key point)
