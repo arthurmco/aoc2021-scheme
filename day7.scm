@@ -19,10 +19,17 @@
     (close-port port)
     data))
 
+;; instead of doing the dumb way
+;;    (apply + (iota distance 1))
+;;
+;; do this
+;;    https://www.vedantu.com/question-answer/the-formula-of-the-sum-of-first-n-natural-class-11-maths-cbse-5ee862757190f464f77a1c68
+
+(define (crab-fuel-burn distance)
+  (/ (* distance (+ distance 1)) 2))
 
 (define (determine-fuel-consumption-to-position crab-list position)
-  (map (lambda (p) (abs (- p position))) crab-list))
-
+  (map (lambda (p) (crab-fuel-burn (abs (- p position)))) crab-list))
 
 (define (fuel-consumption-for-each-position crab-list)
   (let ((positions (delete-duplicates crab-list)))
